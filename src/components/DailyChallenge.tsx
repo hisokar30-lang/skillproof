@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useUsage } from '@/hooks/useUsage';
 import { Sparkles, Clock, Target, Flame, CheckCircle, Lock } from 'lucide-react';
@@ -60,63 +59,74 @@ export default function DailyChallenge() {
 
   const fetchDailyChallenge = async () => {
     setLoading(true);
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
 
-    // Get today's daily challenge
-    const today = new Date().toISOString().split('T')[0];
-    const { data: dailyData } = await supabase
-      .from('daily_challenges')
-      .select(`
-        *,
-        challenge:challenge_id(
-          id,
-          title,
-          category,
-          difficulty,
-          points
-        )
-      `)
-      .eq('featured_date', today)
-      .single();
+      // Get today's daily challenge
+      const today = new Date().toISOString().split('T')[0];
+      const { data: dailyData } = await supabase
+        .from('daily_challenges')
+        .select(`
+          *,
+          challenge:challenge_id(
+            id,
+            title,
+            category,
+            difficulty,
+            points
+          )
+        `)
+        .eq('featured_date', today)
+        .single();
 
-    if (dailyData?.challenge) {
-      // Check if completed
-      let completed = false;
-      if (user) {
-        const { data: submission } = await supabase
-          .from('submissions')
-          .select('id')
-          .eq('challenge_id', dailyData.challenge.id)
-          .eq('user_id', user.id)
-          .eq('status', 'passed')
-          .limit(1)
-          .single();
-        completed = !!submission;
+      if (dailyData?.challenge) {
+        // Check if completed
+        let completed = false;
+        if (user) {
+          const { data: submission } = await supabase
+            .from('submissions')
+            .select('id')
+            .eq('challenge_id', dailyData.challenge.id)
+            .eq('user_id', user.id)
+            .eq('status', 'passed')
+            .limit(1)
+            .single();
+          completed = !!submission;
+        }
+
+        setDailyChallenge({
+          id: dailyData.id,
+          challenge_id: dailyData.challenge.id,
+          title: dailyData.challenge.title,
+          category: dailyData.challenge.category,
+          difficulty: dailyData.challenge.difficulty,
+          points: dailyData.challenge.points,
+          bonus_points: dailyData.bonus_points,
+          is_premium_only: dailyData.is_premium_only,
+          completed,
+        });
       }
-
-      setDailyChallenge({
-        id: dailyData.id,
-        challenge_id: dailyData.challenge.id,
-        title: dailyData.challenge.title,
-        category: dailyData.challenge.category,
-        difficulty: dailyData.challenge.difficulty,
-        points: dailyData.challenge.points,
-        bonus_points: dailyData.bonus_points,
-        is_premium_only: dailyData.is_premium_only,
-        completed,
-      });
+    } catch (e) {
+      console.error('Error fetching daily challenge:', e);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const fetchStreakInfo = async () => {
     if (!user) return;
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+      const { data } = await supabase
+        .rpc('get_streak_info', { user_uuid: user.id });
 
-    const { data } = await supabase
-      .rpc('get_streak_info', { user_uuid: user.id });
-
-    if (data && data.length > 0) {
-      setStreak(data[0]);
+      if (data && data.length > 0) {
+        setStreak(data[0]);
+      }
+    } catch (e) {
+      console.error('Error fetching streak info:', e);
     }
   };
 

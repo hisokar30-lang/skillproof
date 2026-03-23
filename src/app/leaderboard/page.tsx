@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Trophy, Medal, Crown, Filter, Calendar, Target, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -31,84 +30,97 @@ export default function LeaderboardPage() {
   }, [timeframe, category]);
 
   const fetchCategories = async () => {
-    const { data } = await supabase
-      .from('challenges')
-      .select('category')
-      .neq('category', null);
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+      const { data } = await supabase
+        .from('challenges')
+        .select('category')
+        .neq('category', null);
 
-    if (data) {
-      const unique = [...new Set(data.map(c => c.category).filter(Boolean))];
-      setCategories(unique);
+      if (data) {
+        const unique = [...new Set(data.map(c => c.category).filter(Boolean))];
+        setCategories(unique);
+      }
+    } catch (e) {
+      console.error('Error fetching categories:', e);
     }
   };
 
   const fetchLeaderboard = async () => {
     setLoading(true);
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
 
-    let query = supabase
-      .from('submissions')
-      .select(`
-        user_id,
-        points:score,
-        status,
-        created_at,
-        challenge:challenge_id(category)
-      `)
-      .eq('status', 'passed');
+      let query = supabase
+        .from('submissions')
+        .select(`
+          user_id,
+          points:score,
+          status,
+          created_at,
+          challenge:challenge_id(category)
+        `)
+        .eq('status', 'passed');
 
-    // Apply timeframe filter
-    if (timeframe === 'weekly') {
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      query = query.gte('created_at', weekAgo);
-    } else if (timeframe === 'monthly') {
-      const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      query = query.gte('created_at', monthAgo);
-    }
-
-    const { data: submissions } = await query;
-
-    // Aggregate by user
-    const userStats: Record<string, LeaderboardEntry> = {};
-
-    submissions?.forEach((sub: any) => {
-      if (category && sub.challenge?.category !== category) return;
-
-      const userId = sub.user_id;
-      if (!userStats[userId]) {
-        userStats[userId] = {
-          user_id: userId,
-          full_name: '',
-          email: '',
-          total_points: 0,
-          challenges_completed: 0,
-        };
+      // Apply timeframe filter
+      if (timeframe === 'weekly') {
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        query = query.gte('created_at', weekAgo);
+      } else if (timeframe === 'monthly') {
+        const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        query = query.gte('created_at', monthAgo);
       }
-      userStats[userId].total_points += sub.points || 0;
-      userStats[userId].challenges_completed += 1;
-    });
 
-    // Fetch user profiles
-    const userIds = Object.keys(userStats);
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', userIds);
+      const { data: submissions } = await query;
 
-      profiles?.forEach((profile: any) => {
-        if (userStats[profile.id]) {
-          userStats[profile.id].full_name = profile.full_name;
-          userStats[profile.id].email = profile.email;
+      // Aggregate by user
+      const userStats: Record<string, LeaderboardEntry> = {};
+
+      submissions?.forEach((sub: any) => {
+        if (category && sub.challenge?.category !== category) return;
+
+        const userId = sub.user_id;
+        if (!userStats[userId]) {
+          userStats[userId] = {
+            user_id: userId,
+            full_name: '',
+            email: '',
+            total_points: 0,
+            challenges_completed: 0,
+          };
         }
+        userStats[userId].total_points += sub.points || 0;
+        userStats[userId].challenges_completed += 1;
       });
+
+      // Fetch user profiles
+      const userIds = Object.keys(userStats);
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        profiles?.forEach((profile: any) => {
+          if (userStats[profile.id]) {
+            userStats[profile.id].full_name = profile.full_name;
+            userStats[profile.id].email = profile.email;
+          }
+        });
+      }
+
+      const sorted = Object.values(userStats)
+        .sort((a, b) => b.total_points - a.total_points)
+        .slice(0, 50);
+
+      setLeaderboard(sorted);
+    } catch (e) {
+      console.error('Error fetching leaderboard:', e);
+    } finally {
+      setLoading(false);
     }
-
-    const sorted = Object.values(userStats)
-      .sort((a, b) => b.total_points - a.total_points)
-      .slice(0, 50);
-
-    setLeaderboard(sorted);
-    setLoading(false);
   };
 
   const getInitials = (name: string) => {

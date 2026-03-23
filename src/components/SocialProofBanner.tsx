@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { Users, Zap, Trophy, TrendingUp } from 'lucide-react';
 
 interface Stats {
@@ -24,6 +23,9 @@ export default function SocialProofBanner() {
 
   const fetchStats = async () => {
     try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+
       // Get user count
       const { count: users } = await supabase
         .from('profiles')

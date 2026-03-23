@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -17,7 +16,12 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+
+      const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -29,7 +33,11 @@ export default function RegisterPage() {
     } else {
       router.push('/login?message=Please check your email to verify your account');
     }
-    setLoading(false);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

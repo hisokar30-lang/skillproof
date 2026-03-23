@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type { Profile, Score } from '@/types';
 import ProfileSettings from '@/components/ProfileSettings';
@@ -24,34 +23,40 @@ export default function ProfilePage() {
 
   const fetchData = async () => {
     if (!user) return;
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    setProfile(profileData);
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      setProfile(profileData);
 
-    const { data: scoresData } = await supabase
-      .from('scores')
-      .select(`
-        *,
-        challenge:challenge_id (title, points)
-      `)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    if (scoresData) setScores(scoresData as any);
+      const { data: scoresData } = await supabase
+        .from('scores')
+        .select(`
+          *,
+          challenge:challenge_id (title, points)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (scoresData) setScores(scoresData as any);
 
-    const { data: badgesData } = await supabase
-      .from('user_badges')
-      .select(`
-        *,
-        badge:badge_id (*)
-      `)
-      .eq('user_id', user.id)
-      .order('earned_at', { ascending: false });
-    if (badgesData) setBadges(badgesData.map((ub: any) => ({ ...ub.badge, earned_at: ub.earned_at })));
-
-    setLoading(false);
+      const { data: badgesData } = await supabase
+        .from('user_badges')
+        .select(`
+          *,
+          badge:badge_id (*)
+        `)
+        .eq('user_id', user.id)
+        .order('earned_at', { ascending: false });
+      if (badgesData) setBadges(badgesData.map((ub: any) => ({ ...ub.badge, earned_at: ub.earned_at })));
+    } catch (e) {
+      console.error('Error fetching profile data:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCopyProfileLink = () => {

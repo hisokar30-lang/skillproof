@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { MessageCircle, ThumbsUp, ThumbsDown, Reply, Lightbulb, Code, ChevronDown, ChevronUp, User } from 'lucide-react';
 
@@ -42,6 +41,9 @@ export default function CommentsPanel({ challengeId }: CommentsPanelProps) {
   const fetchComments = async () => {
     setLoading(true);
     try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+
       const { data } = await supabase
         .from('comments')
         .select(`
@@ -94,80 +96,99 @@ export default function CommentsPanel({ challengeId }: CommentsPanelProps) {
     e.preventDefault();
     if (!user || !newComment.trim()) return;
 
-    const { data, error } = await supabase
-      .from('comments')
-      .insert({
-        challenge_id: challengeId,
-        user_id: user.id,
-        content: newComment.trim(),
-        parent_id: null,
-      })
-      .select('*, user:user_id(full_name, email)')
-      .single();
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          challenge_id: challengeId,
+          user_id: user.id,
+          content: newComment.trim(),
+          parent_id: null,
+        })
+        .select('*, user:user_id(full_name, email)')
+        .single();
 
-    if (!error && data) {
-      setComments([{ ...data, replies: [], user_vote: null }, ...comments]);
-      setNewComment('');
+      if (!error && data) {
+        setComments([{ ...data, replies: [], user_vote: null }, ...comments]);
+        setNewComment('');
+      }
+    } catch (e) {
+      console.error('Error submitting comment:', e);
     }
   };
 
   const handleReply = async (parentId: string) => {
     if (!user || !replyContent.trim()) return;
 
-    const { data, error } = await supabase
-      .from('comments')
-      .insert({
-        challenge_id: challengeId,
-        user_id: user.id,
-        content: replyContent.trim(),
-        parent_id: parentId,
-      })
-      .select('*, user:user_id(full_name, email)')
-      .single();
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          challenge_id: challengeId,
+          user_id: user.id,
+          content: replyContent.trim(),
+          parent_id: parentId,
+        })
+        .select('*, user:user_id(full_name, email)')
+        .single();
 
-    if (!error && data) {
-      setComments(comments.map(c =>
-        c.id === parentId
-          ? { ...c, replies: [...(c.replies || []), { ...data, user_vote: null }] }
-          : c
-      ));
-      setReplyContent('');
-      setReplyingTo(null);
+      if (!error && data) {
+        setComments(comments.map(c =>
+          c.id === parentId
+            ? { ...c, replies: [...(c.replies || []), { ...data, user_vote: null }] }
+            : c
+        ));
+        setReplyContent('');
+        setReplyingTo(null);
+      }
+    } catch (e) {
+      console.error('Error replying to comment:', e);
     }
   };
 
   const handleVote = async (commentId: string, voteType: 'upvote' | 'downvote') => {
     if (!user) return;
 
-    // Check if user already voted
-    const { data: existing } = await supabase
-      .from('comment_votes')
-      .select('*')
-      .eq('comment_id', commentId)
-      .eq('user_id', user.id)
-      .single();
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
 
-    if (existing) {
-      if (existing.vote_type === voteType) {
-        // Remove vote
-        await supabase.from('comment_votes').delete().eq('id', existing.id);
+      // Check if user already voted
+      const { data: existing } = await supabase
+        .from('comment_votes')
+        .select('*')
+        .eq('comment_id', commentId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existing) {
+        if (existing.vote_type === voteType) {
+          // Remove vote
+          await supabase.from('comment_votes').delete().eq('id', existing.id);
+        } else {
+          // Change vote
+          await supabase
+            .from('comment_votes')
+            .update({ vote_type: voteType })
+            .eq('id', existing.id);
+        }
       } else {
-        // Change vote
-        await supabase
-          .from('comment_votes')
-          .update({ vote_type: voteType })
-          .eq('id', existing.id);
+        // Add vote
+        await supabase.from('comment_votes').insert({
+          comment_id: commentId,
+          user_id: user.id,
+          vote_type: voteType,
+        });
       }
-    } else {
-      // Add vote
-      await supabase.from('comment_votes').insert({
-        comment_id: commentId,
-        user_id: user.id,
-        vote_type: voteType,
-      });
-    }
 
-    await fetchComments();
+      await fetchComments();
+    } catch (e) {
+      console.error('Error voting:', e);
+    }
   };
 
   const sortComments = (comments: Comment[]) => {

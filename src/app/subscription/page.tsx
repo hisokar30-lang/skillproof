@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { CreditCard, Calendar, AlertCircle, CheckCircle, XCircle, Crown } from 'lucide-react';
@@ -73,16 +72,23 @@ export default function SubscriptionPage() {
   }, [user]);
 
   const fetchSubscription = async () => {
-    const { data } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', user?.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
 
-    setSubscription(data);
-    setLoading(false);
+      setSubscription(data);
+    } catch (e) {
+      console.error('Error fetching subscription:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = async () => {

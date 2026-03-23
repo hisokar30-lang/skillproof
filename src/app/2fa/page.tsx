@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { Shield, ShieldCheck, ShieldAlert, Copy, CheckCircle, AlertTriangle, RefreshCw, Smartphone, Key } from 'lucide-react';
 // @ts-ignore - QRCode doesn't have types but works

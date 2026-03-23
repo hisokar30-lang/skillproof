@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { Settings, Save, X, User, Mail, Globe, FileText } from 'lucide-react';
 
@@ -32,6 +31,8 @@ export default function ProfileSettings({ profile, onUpdate }: ProfileSettingsPr
     setLoading(true);
 
     try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('profiles')
         .update({

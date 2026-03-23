@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Award, Download, Share2, CheckCircle, Lock, TrendingUp } from 'lucide-react';
@@ -45,44 +44,51 @@ export default function CertificatePage() {
 
   const fetchData = async () => {
     setLoading(true);
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
 
-    // Get eligibility
-    const { data: eligibilityData } = await supabase
-      .rpc('check_certificate_eligibility', { user_uuid: user?.id });
+      // Get eligibility
+      const { data: eligibilityData } = await supabase
+        .rpc('check_certificate_eligibility', { user_uuid: user?.id });
 
-    if (eligibilityData) {
-      setEligibility(eligibilityData[0]);
+      if (eligibilityData) {
+        setEligibility(eligibilityData[0]);
+      }
+
+      // Get certificates
+      const { data: certData } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('issue_date', { ascending: false });
+
+      setCertificates(certData || []);
+
+      // Get challenges with completion status
+      const { data: allChallenges } = await supabase
+        .from('challenges')
+        .select('id, title, category');
+
+      const { data: completedSubs } = await supabase
+        .from('submissions')
+        .select('challenge_id')
+        .eq('user_id', user?.id)
+        .eq('status', 'passed');
+
+      const completedIds = new Set(completedSubs?.map(s => s.challenge_id) || []);
+
+      const mappedChallenges = (allChallenges || []).map(c => ({
+        ...c,
+        completed: completedIds.has(c.id),
+      }));
+
+      setChallenges(mappedChallenges);
+    } catch (e) {
+      console.error('Error fetching certificate data:', e);
+    } finally {
+      setLoading(false);
     }
-
-    // Get certificates
-    const { data: certData } = await supabase
-      .from('certificates')
-      .select('*')
-      .eq('user_id', user?.id)
-      .order('issue_date', { ascending: false });
-
-    setCertificates(certData || []);
-
-    // Get challenges with completion status
-    const { data: allChallenges } = await supabase
-      .from('challenges')
-      .select('id, title, category');
-
-    const { data: completedSubs } = await supabase
-      .from('submissions')
-      .select('challenge_id')
-      .eq('user_id', user?.id)
-      .eq('status', 'passed');
-
-    const completedIds = new Set(completedSubs?.map(s => s.challenge_id) || []);
-
-    const mappedChallenges = (allChallenges || []).map(c => ({
-      ...c,
-      completed: completedIds.has(c.id),
-    }));
-
-    setChallenges(mappedChallenges);
-    setLoading(false);
   };
 
   const generateCertificate = async () => {
@@ -90,6 +96,9 @@ export default function CertificatePage() {
 
     setGenerating(true);
     try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+
       const completedChallengeIds = challenges
         .filter(c => c.completed)
         .map(c => c.id)

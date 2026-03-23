@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
 import { Shield, ShieldCheck, ArrowLeft, Lock } from 'lucide-react';
 
 export default function LoginPage() {
@@ -22,6 +21,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
       // Step 1: Authenticate with password
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
