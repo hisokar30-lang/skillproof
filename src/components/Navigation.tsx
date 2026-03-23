@@ -2,23 +2,48 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
 
 export default function Navigation() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
+    const initAuth = async () => {
+      try {
+        // Dynamic import to avoid SSR issues
+        const { getSupabaseClient } = await import('@/lib/supabase/client');
+        const supabase = getSupabaseClient();
+
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          (_event, session) => {
+            setUser(session?.user ?? null);
+          }
+        );
+
+        setLoading(false);
+
+        return () => subscription.unsubscribe();
+      } catch (error) {
+        console.error('Auth init error:', error);
+        setLoading(false);
+      }
     };
-    getUser();
+
+    initAuth();
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     setUser(null);
     window.location.href = '/';
   };
@@ -43,11 +68,11 @@ export default function Navigation() {
             <Link href="/leaderboard" className="text-gray-600 hover:text-primary-600">
               Leaderboard
             </Link>
-            {user ? (
+            {!loading && (user ? (
               <>
-            <Link href="/subscription" className="text-gray-600 hover:text-primary-600">
-              Subscription
-            </Link>
+                <Link href="/subscription" className="text-gray-600 hover:text-primary-600">
+                  Subscription
+                </Link>
                 <Link href="/profile" className="text-gray-600 hover:text-primary-600">
                   Profile
                 </Link>
@@ -64,7 +89,7 @@ export default function Navigation() {
                   Sign Up
                 </Link>
               </>
-            )}
+            ))}
           </div>
         </div>
       </div>
