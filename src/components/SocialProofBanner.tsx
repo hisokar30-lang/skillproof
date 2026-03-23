@@ -13,8 +13,12 @@ interface Stats {
 export default function SocialProofBanner() {
   const [stats, setStats] = useState<Stats>({ users: 0, submissions: 0, challenges: 0, online: 0 });
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    // Only run in browser
+    if (typeof window === 'undefined') return;
+
     fetchStats();
     // Refresh every 30 seconds
     const interval = setInterval(fetchStats, 30000);
@@ -50,11 +54,15 @@ export default function SocialProofBanner() {
         challenges: challenges || 0,
         online,
       });
+      setHasError(false);
     } catch (e) {
-      // Silent fail
+      console.error('SocialProofBanner error:', e);
+      setHasError(true);
     }
     setLoading(false);
   };
+
+  if (hasError) return null;
 
   if (loading) return null;
 
