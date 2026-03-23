@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // Generate Base32 secret for TOTP
 function generateSecret(): string {
   const bytes = crypto.randomBytes(20);
@@ -34,8 +29,18 @@ function generateTotpUri(secret: string, email: string): string {
   return `otpauth://totp/${issuer}:${accountName}?secret=${secret}&issuer=${issuer}`;
 }
 
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Missing Supabase environment variables');
+  }
+  return createClient(url, key);
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const { userId, action } = await req.json();
 
     if (!userId) {
@@ -299,6 +304,7 @@ function base32Decode(encoded: string): Buffer {
 
 export async function GET(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
 
