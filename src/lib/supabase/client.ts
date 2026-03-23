@@ -1,51 +1,47 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// This file is only for browser (client-side) usage
-// User must check for window before using
+// Browser-only Supabase client
+// Defers initialization until first use to avoid build-time errors
 
-const createBrowserClient = (): SupabaseClient => {
+let clientInstance: SupabaseClient | null = null;
+
+function createBrowserClient(): SupabaseClient {
+  if (typeof window === 'undefined') {
+    throw new Error('Supabase client is browser-only');
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('[Supabase Client Error] Missing environment variables:', {
+    console.error('[Supabase] Missing env vars:', {
       NEXT_PUBLIC_SUPABASE_URL: supabaseUrl ? 'set' : 'MISSING',
       NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey ? 'set' : 'MISSING',
     });
-    throw new Error(
-      'Supabase client configuration missing. Please ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are configured.'
-    );
+    throw new Error('Supabase configuration missing');
   }
 
   return createClient(supabaseUrl, supabaseAnonKey);
-};
-
-// Browser-only singleton
-let clientInstance: SupabaseClient | null = null;
+}
 
 export function getSupabaseClient(): SupabaseClient {
-  if (typeof window === 'undefined') {
-    throw new Error('getSupabaseClient() is browser-only. Use server.ts for server-side calls.');
-  }
-
   if (!clientInstance) {
     clientInstance = createBrowserClient();
   }
   return clientInstance;
 }
 
-// Create a proxy for the exported supabase object
-export const supabase: SupabaseClient = {
-  get auth() {
-    return getSupabaseClient().auth;
+// Lazy proxy - defers actual client creation until property access
+const handler: ProxyHandler<any> = {
+  get(_target, prop) {
+    const client = getSupabaseClient();
+    const value = client[prop as keyof SupabaseClient];
+    // Bind methods to preserve 'this' context
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
   },
-  get from() {
-    return getSupabaseClient().from;
-  },
-  get storage() {
-    return getSupabaseClient().storage;
-  },
-  get realtime() {
-    return getSupabaseClient().realtime;
-  },
-} as SupabaseClient;
+};
+
+export const supabase = new Proxy({}, handler) as SupabaseClient;

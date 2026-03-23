@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from './useAuth';
 
 interface UsageData {
@@ -27,39 +26,46 @@ export function useUsage() {
     }
 
     const fetchData = async () => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1;
+      try {
+        const { getSupabaseClient } = await import('@/lib/supabase/client');
+        const supabase = getSupabaseClient();
 
-      // Fetch usage data
-      const { data: usageData, error: usageError } = await supabase
-        .from('user_monthly_usage')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('year', year)
-        .eq('month', month)
-        .single();
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
 
-      // Fetch premium status from profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('is_premium')
-        .eq('id', user.id)
-        .single();
+        // Fetch usage data
+        const { data: usageData, error: usageError } = await supabase
+          .from('user_monthly_usage')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('year', year)
+          .eq('month', month)
+          .single();
 
-      if (usageError && usageError.code !== 'PGRST116') {
-        setError(usageError.message);
-      } else {
-        setUsage(usageData || {
-          challengesAttempted: 0,
-          challengesCompleted: 0,
-          month,
-          year
-        });
-      }
+        // Fetch premium status from profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('is_premium')
+          .eq('id', user.id)
+          .single();
 
-      if (profileData) {
-        setIsPremium(profileData.is_premium || false);
+        if (usageError && usageError.code !== 'PGRST116') {
+          setError(usageError.message);
+        } else {
+          setUsage(usageData || {
+            challengesAttempted: 0,
+            challengesCompleted: 0,
+            month,
+            year
+          });
+        }
+
+        if (profileData) {
+          setIsPremium(profileData.is_premium || false);
+        }
+      } catch (err: any) {
+        setError(err.message);
       }
 
       setLoading(false);
